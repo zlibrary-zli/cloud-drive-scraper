@@ -5,6 +5,7 @@ import argparse
 import logging
 import time
 import re
+from markdownify import markdownify as md
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,6 +21,7 @@ class NS211Scraper:
             "Referer": "https://www.ns211.com/"
         })
         self.base_url = "https://www.ns211.com"
+        self.api_url = "https://www.ns211.com/wp-admin/admin-ajax.php"
 
     def fetch_game_links(self, page=1, category="switch"):
         """抓取列表页的所有游戏链接"""
@@ -56,19 +58,6 @@ class NS211Scraper:
             title_tag = soup.find("h1", class_="article-title") or soup.find("h1")
             title = title_tag.text.strip() if title_tag else "未知标题"
             
-            # 2. 页面信息
-            info = ""
-            content_div = soup.find(class_="article-content")
-            if content_div:
-                ps = content_div.find_all("p")
-                info_texts = []
-                for p in ps:
-                    text = p.text.strip()
-                    # 过滤掉一些无关的提示文本
-                    if text and "免费获取下载链接" not in text and "赞助会员免扫码" not in text and "提取码" not in text:
-                        info_texts.append(text)
-                info = " ".join(info_texts) # 拼接为摘要
-            
             # 3. 标签（从文章meta信息中提取）
             tags = []
             meta_div = soup.find(class_="entry-meta")
@@ -76,42 +65,63 @@ class NS211Scraper:
                 for a in meta_div.find_all("a"):
                     text = a.text.strip()
                     # 排除作者名等非标签信息（通常分类/标签在后面）
-                    if text and text not in ["逍遥", "admin", "admin", "作者"]:
+                    if text and text not in ["逍遥", "admin", "作者"]:
                         tags.append(text)
             tags_str = ", ".join(tags)
             
-            # 4. 网盘链接与提取码
+            # 4. 网盘链接（在修改 DOM 前提取真实的网盘直链）
             drives = {
                 "baidu": "",
                 "quark": "",
                 "xunlei": ""
             }
             
-            # 查找所有a标签，定位包含 go? 的下载链接
-            for a in soup.find_all("a"):
-                href = a.get("href", "")
-                if "go?" in href:
-                    parent = a.parent
-                    parent_text = parent.text.replace("\n", " ").replace("\r", " ").strip()
-                    # 清理多余空格
-                    parent_text = re.sub(r"\s+", " ", parent_text)
-                    
-                    # 尝试正则提取具体的提取码，让显示更干净
-                    code_match = re.search(r"提取码[：:]\s*([a-zA-Z0-9]+)", parent_text)
-                    code_str = f" (提取码: {code_match.group(1)})" if code_match else ""
-                    
-                    link_info = f"{href}{code_str}"
-                    
-                    # 根据链接文字或者href判断属于哪个网盘
-                    if "百度" in a.text or "baidu" in a.text or "type=1" in href or ("type=" not in href and "post_id" in href):
-                        if not drives["baidu"]:
-                            drives["baidu"] = link_info
-                    elif "夸克" in a.text or "quark" in a.text or "type=5" in href:
-                        if not drives["quark"]:
-                            drives["quark"] = link_info
-                    elif "迅雷" in a.text or "xunlei" in a.text or "type=4" in href:
-                        if not drives["xunlei"]:
-                            drives["xunlei"] = link_info
+            download_links = soup.find_all(class_="download-link")
+            for dl in download_links:
+                post_id = dl.get("data-postid")
+                dtype = dl.get("data-type")
+                text = dl.text.strip()
+                
+                if post_id and dtype:
+                    api_data = {
+                        "action": "get_download_link",
+                        "post_id": post_id,
+                        "type": dtype
+                    }
+                    resp = self.session.post(self.api_url, data=api_data, timeout=5)
+                    if resp.status_code == 200 and resp.json().get("success"):
+                        real_link = resp.json()["data"].get("link", "")
+                        
+                        if "夸克" in text or "quark" in text.lower():
+                            drives["quark"] = real_link
+                        elif "百度" in text or "baidu" in text.lower():
+                            drives["baidu"] = real_link
+                        elif "迅雷" in text or "xunlei" in text.lower():
+                            drives["xunlei"] = real_link
+
+            # 2. 页面信息 (提取类似正文的 Markdown 格式，包含图片和视频链接)
+            content_div = soup.find("div", class_="entry-content")
+            info = ""
+            if content_div:
+                # 过滤掉干扰内容
+                for e in content_div.find_all(class_="download-link"):
+                    e.decompose()
+                for e in content_div.find_all(id="qr-overlay"):
+                    e.decompose()
+                for e in content_div.find_all(id="pay-single-box"):
+                    e.decompose()
+                for e in content_div.find_all(class_="article-copyright"):
+                    e.decompose()
+                for e in content_div.find_all(class_="article-footer"):
+                    e.decompose()
+                
+                # 清除免费下载相关的h2及周围的div
+                for el in content_div.find_all(["h2", "h3", "div"]):
+                    if el.text and "免费下载" in el.text and "无需扫码" in el.text:
+                        el.decompose()
+
+                # 使用 markdownify 将 HTML 转化为富文本 Markdown，保留图片等标签
+                info = md(str(content_div), strip=["script", "style"]).strip()
 
             return {
                 "标题": title,
