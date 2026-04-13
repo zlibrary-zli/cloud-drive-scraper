@@ -1,3 +1,12 @@
+---
+title: Cloud Drive Scraper
+emoji: 🚀
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 8000
+---
+
 # Cloud Drive Scraper (网盘爬虫控制台)
 
 这是一个具有极客赛博风格 Web 界面的网盘爬虫管理平台，用于自动化爬取公开网盘链接（如百度网盘、夸克网盘、迅雷网盘），并支持智能去重、实时日志监控和 Markdown 图文渲染预览，最后可一键导出为 Excel 文件。
@@ -13,18 +22,28 @@
 
 ## 🚀 部署指南 (如何免费部署并测试)
 
-由于爬虫脚本需要访问外网并执行 HTTP 请求，推荐使用以下平台免费部署。
+由于某些平台（如 Render）近期要求新用户绑定信用卡，我为你推荐完全**无需信用卡**的免费部署方案。
 
-### 方案 A: 使用 Render.com (免费、最推荐)
-Render 允许直接绑定 GitHub 仓库，并通过 Dockerfile 免费自动构建和部署。
-1. 注册并登录 [Render.com](https://render.com/)。
-2. 点击 **New** -> **Web Service**，选择连接你刚才创建的这个 GitHub 仓库。
-3. **Environment** 选择 `Docker`。
-4. **Build Command** 和 **Start Command** 留空（Render 会自动读取项目根目录的 `Dockerfile`）。
-5. 实例类型选择 **Free** 免费实例。
-6. 点击 **Create Web Service**。大约等待几分钟，Render 就会为你生成一个免费的 `https://your-app.onrender.com` 公网地址供你直接访问控制台！
+### 方案 A: 使用 Hugging Face Spaces (完全免费、无绑卡要求、一键克隆)
+Hugging Face Spaces 是一个免费的微型服务器平台，它原生地支持 Docker 并且完全不要求信用卡。我已经为你写好了相关的配置头信息。
+1. 注册并登录 [Hugging Face](https://huggingface.co/join)。
+2. 点击右上角的个人头像，选择 **New Space**。
+3. **Space name** 填 `cloud-drive-scraper`。
+4. **License** 选 `MIT`。
+5. **Select the Space SDK** 选择 **Docker**，然后选 **Blank**。
+6. 点击最下方的 **Create Space**。
+7. 在跳转后的页面中，找到 `Files and versions` 标签页，点击 `Add file` -> `Upload files`。
+8. 把你本地（或者你 GitHub 仓库下载的）整个项目里的所有代码文件拖进去上传并提交。
+9. 上传完毕后，Hugging Face 会自动识别到 `Dockerfile` 和 `README.md` 中的端口配置开始构建。只要右上角的绿点（Running）亮起，你的控制台就可以直接在公网访问啦！
 
-### 方案 B: 本地或云服务器使用 Docker 一键启动
+### 方案 B: 使用 Zeabur (免绑卡、国内访问友好)
+[Zeabur](https://zeabur.com/) 是一个对新手极其友好的部署平台，免费层无需信用卡。
+1. 登录 Zeabur 控制台。
+2. 创建一个新的 Project。
+3. 选择从 GitHub 导入服务，授权你的 `cloud-drive-scraper` 仓库。
+4. 它会自动识别到根目录的 `Dockerfile`，点击 Deploy 即可，系统会自动分配一个公网域名给你。
+
+### 方案 C: 本地或云服务器使用 Docker 一键启动
 如果你有自己的服务器（如阿里云、腾讯云、甚至你自己的电脑），只需要安装 Docker。
 ```bash
 # 1. 克隆代码
