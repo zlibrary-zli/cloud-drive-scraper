@@ -6,8 +6,9 @@ import time
 from datetime import datetime
 from uuid import uuid4
 from fastapi import FastAPI, BackgroundTasks, Request
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import pandas as pd
 from ns211_scraper import NS211Scraper
 
@@ -225,3 +226,20 @@ async def export_task_results(task_id: str):
     if os.path.exists(excel_path):
         return FileResponse(excel_path, filename=f"NS211_Results_{task_id[:8]}.xlsx")
     return {"error": "File not found"}
+
+# Mount frontend static files (Must be placed AFTER all /api/ routes)
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        # Allow API requests to fall through to 404 handler if not defined above
+        if full_path.startswith("api/"):
+            return {"error": "Endpoint not found"}
+        
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_file):
+            with open(index_file, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        return {"error": "Frontend not built yet"}

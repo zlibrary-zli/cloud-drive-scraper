@@ -1,5 +1,8 @@
+fastapi==0.110.0
+uvicorn==0.29.0
 requests==2.31.0
 beautifulsoup4==4.12.3
-urllib3==2.2.1
-click==8.1.7
-# playwright==1.42.0  # 取消注释如果你想使用Playwright绕过反爬机制
+pandas==2.2.1
+openpyxl==3.1.2
+pydantic==2.6.4
+markdownify==0.11.6

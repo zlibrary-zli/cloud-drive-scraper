@@ -11,7 +11,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
 
 const TaskDetail = () => {
   const { id } = useParams();

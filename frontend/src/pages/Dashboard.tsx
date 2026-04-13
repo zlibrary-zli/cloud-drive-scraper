@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Play, SquareTerminal, Activity, Database, CheckCircle2, XCircle, BarChart3, FastForward, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
 
 const Dashboard = () => {
   const [pages, setPages] = useState(1);
