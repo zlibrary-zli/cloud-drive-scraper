@@ -1,0 +1,5 @@
+requests==2.31.0
+beautifulsoup4==4.12.3
+urllib3==2.2.1
+click==8.1.7
+# playwright==1.42.0  # 取消注释如果你想使用Playwright绕过反爬机制
