@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Play, SquareTerminal, Activity, Database, CheckCircle2, XCircle } from 'lucide-react';
+import { Play, SquareTerminal, Activity, Database, CheckCircle2, XCircle, BarChart3, FastForward, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const API_BASE = 'http://localhost:8000/api';
@@ -12,6 +12,7 @@ const Dashboard = () => {
   const [logs, setLogs] = useState<string[]>([]);
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
   const [tasks, setTasks] = useState<any[]>([]);
+  const [stats, setStats] = useState({ totalTasks: 0, totalCrawled: 0, totalSkipped: 0, totalUnique: 0 });
   
   const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -20,19 +21,23 @@ const Dashboard = () => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
-  // Fetch task history
-  const fetchTasks = async () => {
+  // Fetch task history and stats
+  const fetchTasksAndStats = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/tasks`);
-      setTasks(res.data.reverse()); // newest first
+      const [tasksRes, statsRes] = await Promise.all([
+        axios.get(`${API_BASE}/tasks`),
+        axios.get(`${API_BASE}/stats`)
+      ]);
+      setTasks(tasksRes.data.reverse()); // newest first
+      setStats(statsRes.data);
     } catch (e) {
-      console.error('Failed to fetch tasks', e);
+      console.error('Failed to fetch data', e);
     }
   };
 
   useEffect(() => {
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 5000);
+    fetchTasksAndStats();
+    const interval = setInterval(fetchTasksAndStats, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -52,7 +57,7 @@ const Dashboard = () => {
         if (data.status === 'EOF') {
           eventSource.close();
           setStatus('completed');
-          fetchTasks();
+          fetchTasksAndStats();
         } else if (data.log) {
           setLogs(prev => [...prev, data.log]);
         }
@@ -76,10 +81,31 @@ const Dashboard = () => {
       {/* Left Column: Config & History */}
       <div className="space-y-6 lg:col-span-1">
         
+        {/* Stats Panel */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-panel p-5 rounded-2xl flex flex-wrap gap-4 justify-between items-center"
+        >
+          <div className="text-center flex-1">
+            <div className="text-cyber-text-muted text-xs mb-1 flex justify-center items-center gap-1"><Database className="w-3 h-3"/> 总抓取</div>
+            <div className="text-2xl font-bold text-white">{stats.totalCrawled}</div>
+          </div>
+          <div className="text-center flex-1 border-l border-r border-cyber-border/50 px-2">
+            <div className="text-cyber-text-muted text-xs mb-1 flex justify-center items-center gap-1"><FastForward className="w-3 h-3"/> 已跳过</div>
+            <div className="text-2xl font-bold text-yellow-400">{stats.totalSkipped}</div>
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-cyber-text-muted text-xs mb-1 flex justify-center items-center gap-1"><Hash className="w-3 h-3"/> 去重资源</div>
+            <div className="text-2xl font-bold text-cyber-accent">{stats.totalUnique}</div>
+          </div>
+        </motion.div>
+
         {/* Config Panel */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
           className="glass-panel p-6 rounded-2xl"
         >
           <div className="flex items-center gap-3 mb-6">
@@ -141,8 +167,8 @@ const Dashboard = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="glass-panel rounded-2xl overflow-hidden flex flex-col h-[400px]"
+          transition={{ delay: 0.2 }}
+          className="glass-panel rounded-2xl overflow-hidden flex flex-col h-[280px]"
         >
           <div className="p-5 border-b border-cyber-border flex items-center gap-3">
             <Database className="text-cyber-text-muted w-5 h-5" />

@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import logging
+import time
 from datetime import datetime
 from uuid import uuid4
 from fastapi import FastAPI, BackgroundTasks, Request
@@ -40,6 +41,22 @@ def load_tasks_db():
 
 load_tasks_db()
 
+# Load global crawled links for deduplication
+crawled_db = set()
+CRAWLED_DB_PATH = os.path.join(DATA_DIR, "crawled_links.json")
+
+def load_crawled_db():
+    global crawled_db
+    if os.path.exists(CRAWLED_DB_PATH):
+        with open(CRAWLED_DB_PATH, "r") as f:
+            crawled_db = set(json.load(f))
+
+def save_crawled_db():
+    with open(CRAWLED_DB_PATH, "w") as f:
+        json.dump(list(crawled_db), f)
+
+load_crawled_db()
+
 class QueueLogHandler(logging.Handler):
     def __init__(self, task_id):
         super().__init__()
@@ -75,6 +92,7 @@ def run_scraper(task_id: str, pages: int, category: str):
     try:
         # Patch the scraper run to capture data directly instead of just saving
         all_data = []
+        skipped = 0
         for page in range(1, pages + 1):
             links = scraper.fetch_game_links(page, category)
             if not links:
@@ -82,9 +100,16 @@ def run_scraper(task_id: str, pages: int, category: str):
                 break
                 
             for link in links:
+                if link in crawled_db:
+                    logger.info(f"⏭️ 跳过已爬取链接: {link}")
+                    skipped += 1
+                    continue
+                    
                 data = scraper.fetch_game_detail(link)
                 if data:
                     all_data.append(data)
+                    crawled_db.add(link)
+                    save_crawled_db()
                 time.sleep(1) # 延时
                 
         if all_data:
@@ -98,13 +123,15 @@ def run_scraper(task_id: str, pages: int, category: str):
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(all_data, f, ensure_ascii=False, indent=2)
                 
-            logger.info(f"爬取完成！共抓取 {len(all_data)} 条数据。")
+            logger.info(f"✅ 爬取完成！本次新增抓取 {len(all_data)} 条数据，跳过 {skipped} 条。")
             tasks_db[task_id]["status"] = "completed"
             tasks_db[task_id]["count"] = len(all_data)
+            tasks_db[task_id]["skipped"] = skipped
         else:
-            logger.warning("未能抓取到任何数据！")
+            logger.warning(f"未能抓取到新数据！（跳过了 {skipped} 条重复记录）")
             tasks_db[task_id]["status"] = "completed"
             tasks_db[task_id]["count"] = 0
+            tasks_db[task_id]["skipped"] = skipped
             
     except Exception as e:
         logger.error(f"任务出错: {e}")
@@ -148,6 +175,21 @@ async def start_task(payload: dict, background_tasks: BackgroundTasks):
 @app.get("/api/tasks")
 async def get_tasks():
     return list(tasks_db.values())
+
+@app.get("/api/stats")
+async def get_stats():
+    # Return global stats like total tasks, total items, total skipped
+    total_tasks = len(tasks_db)
+    total_crawled = sum(t.get("count", 0) for t in tasks_db.values())
+    total_skipped = sum(t.get("skipped", 0) for t in tasks_db.values())
+    total_unique = len(crawled_db)
+    
+    return {
+        "totalTasks": total_tasks,
+        "totalCrawled": total_crawled,
+        "totalSkipped": total_skipped,
+        "totalUnique": total_unique
+    }
 
 @app.get("/api/tasks/{task_id}/stream")
 async def task_log_stream(task_id: str, request: Request):
