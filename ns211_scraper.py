@@ -69,11 +69,16 @@ class NS211Scraper:
                         info_texts.append(text)
                 info = " ".join(info_texts) # 拼接为摘要
             
-            # 3. 标签
-            tags_elements = soup.select(".article-tags a")
-            if not tags_elements:
-                tags_elements = soup.select("a[rel=tag]")
-            tags = ", ".join([t.text.strip() for t in tags_elements])
+            # 3. 标签（从文章meta信息中提取）
+            tags = []
+            meta_div = soup.find(class_="entry-meta")
+            if meta_div:
+                for a in meta_div.find_all("a"):
+                    text = a.text.strip()
+                    # 排除作者名等非标签信息（通常分类/标签在后面）
+                    if text and text not in ["逍遥", "admin", "admin", "作者"]:
+                        tags.append(text)
+            tags_str = ", ".join(tags)
             
             # 4. 网盘链接与提取码
             drives = {
@@ -91,14 +96,22 @@ class NS211Scraper:
                     # 清理多余空格
                     parent_text = re.sub(r"\s+", " ", parent_text)
                     
-                    link_info = f"链接: {href}\n信息: {parent_text}"
+                    # 尝试正则提取具体的提取码，让显示更干净
+                    code_match = re.search(r"提取码[：:]\s*([a-zA-Z0-9]+)", parent_text)
+                    code_str = f" (提取码: {code_match.group(1)})" if code_match else ""
                     
-                    if "百度网盘" in a.text or "百度" in a.text:
-                        drives["baidu"] = link_info
-                    elif "夸克网盘" in a.text or "夸克" in a.text:
-                        drives["quark"] = link_info
-                    elif "迅雷" in a.text:
-                        drives["xunlei"] = link_info
+                    link_info = f"{href}{code_str}"
+                    
+                    # 根据链接文字或者href判断属于哪个网盘
+                    if "百度" in a.text or "baidu" in a.text or "type=1" in href or ("type=" not in href and "post_id" in href):
+                        if not drives["baidu"]:
+                            drives["baidu"] = link_info
+                    elif "夸克" in a.text or "quark" in a.text or "type=5" in href:
+                        if not drives["quark"]:
+                            drives["quark"] = link_info
+                    elif "迅雷" in a.text or "xunlei" in a.text or "type=4" in href:
+                        if not drives["xunlei"]:
+                            drives["xunlei"] = link_info
 
             return {
                 "标题": title,
@@ -106,7 +119,7 @@ class NS211Scraper:
                 "夸克网盘": drives["quark"],
                 "百度网盘": drives["baidu"],
                 "迅雷网盘": drives["xunlei"],
-                "标签": tags,
+                "标签": tags_str,
                 "页面链接": url
             }
             
