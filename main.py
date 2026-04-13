@@ -1,8 +1,12 @@
 import os
+import sys
 import json
 import asyncio
 import logging
 import time
+import webbrowser
+import threading
+import uvicorn
 from datetime import datetime
 from uuid import uuid4
 from fastapi import FastAPI, BackgroundTasks, Request
@@ -22,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_DIR = "data"
+DATA_DIR = os.path.join(os.getcwd(), "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # Global task state and log queues
@@ -228,7 +232,15 @@ async def export_task_results(task_id: str):
     return {"error": "File not found"}
 
 # Mount frontend static files (Must be placed AFTER all /api/ routes)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
+if getattr(sys, 'frozen', False):
+    # If the application is run as a bundle, the PyInstaller bootloader
+    # extends the sys module by a flag frozen=True and sets the app 
+    # path into variable _MEIPASS'.
+    base_dir = sys._MEIPASS
+else:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
 
@@ -243,3 +255,14 @@ if os.path.exists(static_dir):
             with open(index_file, "r", encoding="utf-8") as f:
                 return HTMLResponse(content=f.read())
         return {"error": "Frontend not built yet"}
+
+def open_browser():
+    time.sleep(1.5)
+    url = "http://127.0.0.1:8000"
+    print(f"Opening browser at {url} ...")
+    webbrowser.open(url)
+
+if __name__ == "__main__":
+    print("Starting local server...")
+    threading.Thread(target=open_browser, daemon=True).start()
+    uvicorn.run(app, host="127.0.0.1", port=8000)
